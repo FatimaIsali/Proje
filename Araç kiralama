@@ -1,259 +1,340 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 
-public sealed class Arac // Sealed class, kalıtılmasını engeller
+namespace AracKiralamaSistemi
 {
-    public string AracAdi { get; set; }
-    public string Marka { get; set; }
-    public string Model { get; set; }
-    public bool MüsaitMi { get; set; }
-    public decimal GunlukKiralamaFiyati { get; set; }
-    public string Kategori { get; set; }
+    #region - Arayüzler (Interfaces)
 
-    public Arac(string aracAdi, string marka, string model, decimal gunlukKiralamaFiyati, string kategori)
+    // Araç ve Kiralama işlemlerini soyutlamak için arayüzler
+    public interface IKiralama
     {
-        AracAdi = aracAdi;
-        Marka = marka;
-        Model = model;
-        MüsaitMi = true;
-        GunlukKiralamaFiyati = gunlukKiralamaFiyati;
-        Kategori = kategori;
+        decimal KiralamaUcretiHesapla(int kiralamaGunleri);
+        decimal GecikmeFaiziHesapla(int gecikmeGunleri);
     }
 
-    public decimal KiralamaUcretiHesapla(int kiralamaGunleri)
+    public interface IArac
     {
-        return kiralamaGunleri * GunlukKiralamaFiyati;
+        string AracAdi { get; }
+        string Marka { get; }
+        string Model { get; }
+        bool MüsaitMi { get; }
+        decimal GunlukKiralamaFiyati { get; }
+        string Kategori { get; }
+
+        void MüsaitlikDegistir(bool yeniDurum);
     }
 
-    public decimal GecikmeFaiziHesapla(int gecikmeGunleri)
+    #endregion
+
+    #region - Arac (Vehicle)
+
+    // Araç sınıfı: IArac, IKiralama arayüzlerini implement ediyor
+    public class Arac : IArac, IComparable<Arac>, IKiralama
     {
-        if (gecikmeGunleri > 0)
+        public string AracAdi { get; private set; }
+        public string Marka { get; private set; }
+        public string Model { get; private set; }
+        public bool MüsaitMi { get; private set; }
+        public decimal GunlukKiralamaFiyati { get; private set; }
+        public string Kategori { get; private set; }
+
+        public Arac(string aracAdi, string marka, string model, decimal gunlukKiralamaFiyati, string kategori)
         {
-            decimal faiz = 0.05m; // %5 faiz
-            decimal gecikmeUcreti = GunlukKiralamaFiyati * gecikmeGunleri * faiz;
-            return gecikmeUcreti;
+            AracAdi = aracAdi;
+            Marka = marka;
+            Model = model;
+            MüsaitMi = true;
+            GunlukKiralamaFiyati = gunlukKiralamaFiyati;
+            Kategori = kategori;
         }
-        return 0;
-    }
-}
 
-public class Kullanici
-{
-    public string KullaniciAdi { get; set; }
-    public string Soyadi { get; set; }
-    public string TelefonNumarasi { get; set; }
-    public string Parola { get; set; }
-    public string Email { get; set; }
-    public List<Kiralama> KiralamaGeçmisi { get; set; }
-
-    public Kullanici(string kullaniciAdi, string soyadi, string telefonNumarasi, string parola, string email)
-    {
-        KullaniciAdi = kullaniciAdi;
-        Soyadi = soyadi;
-        TelefonNumarasi = telefonNumarasi;
-        Parola = parola;
-        Email = email;
-        KiralamaGeçmisi = new List<Kiralama>();
-    }
-
-    public void KiralamaEkle(Kiralama kiralama)
-    {
-        KiralamaGeçmisi.Add(kiralama);
-    }
-
-    public void KullaniciBilgileriniYazdir()
-    {
-        Console.WriteLine($"Kullanıcı Adı: {KullaniciAdi}");
-        Console.WriteLine($"Soyadı: {Soyadi}");
-        Console.WriteLine($"Telefon Numarası: {TelefonNumarasi}");
-        Console.WriteLine($"E-posta: {Email}");
-    }
-}
-
-public enum AracKategori
-{
-    Luks,
-    Ekonomik,
-    SUV,
-    Sport
-}
-
-public class Kiralama
-{
-    public Arac KiralananArac { get; set; }
-    public Kullanici Kiralayan { get; set; }
-    public DateTime BaslangicTarihi { get; set; }
-    public DateTime BitisTarihi { get; set; }
-    public int KiralamaGunleri => (BitisTarihi - BaslangicTarihi).Days;
-    public decimal KiralamaUcreti => KiralananArac.KiralamaUcretiHesapla(KiralamaGunleri);
-    public int GecikmeGunleri { get; set; }
-    public decimal GecikmeFaizi => KiralananArac.GecikmeFaiziHesapla(GecikmeGunleri);
-
-    public Kiralama(Arac kiralananArac, Kullanici kiralayan, DateTime baslangicTarihi, DateTime bitisTarihi)
-    {
-        KiralananArac = kiralananArac;
-        Kiralayan = kiralayan;
-        BaslangicTarihi = baslangicTarihi;
-        BitisTarihi = bitisTarihi;
-        GecikmeGunleri = 0;
-    }
-
-    public void KiralamayiBaslat()
-    {
-        if (KiralananArac.MüsaitMi)
+        public decimal KiralamaUcretiHesapla(int kiralamaGunleri)
         {
-            KiralananArac.MüsaitMi = false;
+            decimal indirim = 0;
+            if (Kategori == "Lüks") indirim = 0.10m;
+            if (Kategori == "Ekonomik") indirim = 0.05m;
+
+            return kiralamaGunleri * GunlukKiralamaFiyati * (1 - indirim);
+        }
+
+        public decimal GecikmeFaiziHesapla(int gecikmeGunleri)
+        {
+            return gecikmeGunleri > 0 ? GunlukKiralamaFiyati * gecikmeGunleri * 0.05m : 0;
+        }
+
+        public void MüsaitlikDegistir(bool yeniDurum)
+        {
+            MüsaitMi = yeniDurum;
+        }
+
+        public int CompareTo(Arac other)
+        {
+            return this.GunlukKiralamaFiyati.CompareTo(other.GunlukKiralamaFiyati);
+        }
+    }
+
+    #endregion
+
+    #region - Kullanıcı (User)
+
+    public class Kullanici
+    {
+        public string KullaniciAdi { get; set; }
+        public string Soyadi { get; set; }
+        public string TelefonNumarasi { get; set; }
+        public string Parola { get; set; }
+        public string Email { get; set; }
+
+        public Kullanici(string kullaniciAdi, string soyadi, string telefonNumarasi, string parola, string email)
+        {
+            KullaniciAdi = kullaniciAdi;
+            Soyadi = soyadi;
+            TelefonNumarasi = telefonNumarasi;
+            Parola = parola;
+            Email = email;
+        }
+
+        public void KullaniciBilgileriniYazdir()
+        {
+            Console.WriteLine($"Kullanıcı Adı: {KullaniciAdi}");
+            Console.WriteLine($"Soyadı: {Soyadi}");
+            Console.WriteLine($"Telefon Numarası: {TelefonNumarasi}");
+            Console.WriteLine($"E-posta: {Email}");
+        }
+
+        public bool TelefonNumarasiDogruMu()
+        {
+            var regex = new Regex(@"^\d{10}$");
+            return regex.IsMatch(TelefonNumarasi);
+        }
+    }
+
+    #endregion
+
+    #region - Kiralama (Rental)
+
+    // Kiralama sınıfı
+    public class Kiralama
+    {
+        public Arac KiralananArac { get; set; }
+        public Kullanici Kiralayan { get; set; }
+        public DateTime BaslangicTarihi { get; set; }
+        public DateTime BitisTarihi { get; set; }
+        public int KiralamaGunleri => (BitisTarihi - BaslangicTarihi).Days;
+        public decimal KiralamaUcreti => KiralananArac.KiralamaUcretiHesapla(KiralamaGunleri);
+        public int GecikmeGunleri { get; set; }
+        public decimal GecikmeFaizi => KiralananArac.GecikmeFaiziHesapla(GecikmeGunleri);
+
+        public Kiralama(Arac kiralananArac, Kullanici kiralayan, DateTime baslangicTarihi, DateTime bitisTarihi)
+        {
+            KiralananArac = kiralananArac;
+            Kiralayan = kiralayan;
+            BaslangicTarihi = baslangicTarihi;
+            BitisTarihi = bitisTarihi;
+            GecikmeGunleri = 0;
+        }
+
+        public void KiralamayiBaslat()
+        {
+            KiralananArac.MüsaitlikDegistir(false);
             Console.WriteLine($"Kiralama başlatıldı: {KiralananArac.AracAdi} ({BaslangicTarihi.ToShortDateString()} - {BitisTarihi.ToShortDateString()})");
             Console.WriteLine($"Toplam Kiralama Ücreti: {KiralamaUcreti:C}");
         }
-        else
+
+        public void KiralamayiTamamla(DateTime teslimTarihi)
         {
-            Console.WriteLine("Bu araç şu an kirada.");
+            KiralananArac.MüsaitlikDegistir(true);
+            GecikmeGunleri = (teslimTarihi - BitisTarihi).Days;
+            decimal toplamUcret = KiralamaUcreti + GecikmeFaizi;
+            Console.WriteLine($"Kiralama tamamlandı. Teslim tarihi: {teslimTarihi.ToShortDateString()}");
+            if (GecikmeGunleri > 0)
+            {
+                Console.WriteLine($"Geç teslimat nedeniyle {GecikmeGunleri} gün gecikme faizi eklendi.");
+            }
+            Console.WriteLine($"Toplam Ücret (Gecikme Faizi Dahil): {toplamUcret:C}");
         }
     }
 
-    public void KiralamayiTamamla(DateTime teslimTarihi)
+    #endregion
+
+    #region - Kiralama Sistemi (Rental System)
+
+    public class AracKiralamaSistemi
     {
-        KiralananArac.MüsaitMi = true;
-        GecikmeGunleri = (teslimTarihi - BitisTarihi).Days;
-        decimal toplamUcret = KiralamaUcreti + GecikmeFaizi;
-        Console.WriteLine($"Kiralama tamamlandı. Teslim tarihi: {teslimTarihi.ToShortDateString()}");
-        if (GecikmeGunleri > 0)
+        private List<Arac> mevcutAraclar;
+        private List<Kullanici> kullanicilar;
+        private Kullanici aktifKullanici;
+
+        public AracKiralamaSistemi()
         {
-            Console.WriteLine($"Geç teslimat nedeniyle {GecikmeGunleri} gün gecikme faizi eklendi.");
+            mevcutAraclar = new List<Arac>();
+            kullanicilar = new List<Kullanici>();
+            aktifKullanici = null;
         }
-        Console.WriteLine($"Toplam Ücret (Gecikme Faizi Dahil): {toplamUcret:C}");
-    }
-}
 
-public partial class AracKiralamaSistemi // Partial class
-{
-    private List<Arac> mevcutAraclar;
-    private List<Kullanici> kullanicilar;
-
-    public AracKiralamaSistemi()
-    {
-        mevcutAraclar = new List<Arac>();
-        kullanicilar = new List<Kullanici>();
-    }
-
-    public void KullaniciEkle()
-    {
-        try
+        public void KullaniciEkle()
         {
-            Console.WriteLine("Kullanıcı adı: ");
-            string kullaniciAdi = Console.ReadLine();
+            try
+            {
+                Console.WriteLine("Kullanıcı adı: ");
+                string kullaniciAdi = Console.ReadLine();
 
-            Console.WriteLine("Soyadı: ");
-            string soyadi = Console.ReadLine();
+                Console.WriteLine("Soyadı: ");
+                string soyadi = Console.ReadLine();
 
-            Console.WriteLine("Telefon numarası: ");
-            string telefonNumarasi = Console.ReadLine();
+                Console.WriteLine("Telefon numarası (10 haneli): ");
+                string telefonNumarasi = Console.ReadLine();
 
-            Console.WriteLine("Parola: ");
-            string parola = Console.ReadLine();
+                if (!Regex.IsMatch(telefonNumarasi, @"^\d{10}$"))
+                {
+                    Console.WriteLine("Telefon numarası geçersiz! Lütfen 10 haneli bir telefon numarası girin.");
+                    return;
+                }
 
-            Console.WriteLine("E-posta: ");
-            string email = Console.ReadLine();
+                Console.WriteLine("Parola: ");
+                string parola = Console.ReadLine();
 
-            var kullanici = new Kullanici(kullaniciAdi, soyadi, telefonNumarasi, parola, email);
-            kullanicilar.Add(kullanici);
-            Console.WriteLine($"Kullanıcı {kullaniciAdi} başarıyla kaydedildi!");
+                Console.WriteLine("E-posta: ");
+                string email = Console.ReadLine();
+
+                var kullanici = new Kullanici(kullaniciAdi, soyadi, telefonNumarasi, parola, email);
+                kullanicilar.Add(kullanici);
+                Console.WriteLine($"Kullanıcı {kullaniciAdi} başarıyla kaydedildi!");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Hata oluştu: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+
+        public void AracEkle(string aracAdi, string marka, string model, decimal gunlukKiralamaFiyati, string kategori)
         {
-            Console.WriteLine($"Hata oluştu: {ex.Message}");
+            mevcutAraclar.Add(new Arac(aracAdi, marka, model, gunlukKiralamaFiyati, kategori));
         }
-    }
 
-    public void AracEkle(string aracAdi, string marka, string model, decimal gunlukKiralamaFiyati, string kategori)
-    {
-        mevcutAraclar.Add(new Arac(aracAdi, marka, model, gunlukKiralamaFiyati, kategori));
-    }
-
-    public void MevcutAraclariGoster()
-    {
-        Console.WriteLine("Müsait Araçlar:");
-        foreach (var arac in mevcutAraclar)
+        public void MevcutAraclariGoster()
         {
-            if (arac.MüsaitMi)
+            Console.WriteLine("Müsait Araçlar:");
+            var araclar = mevcutAraclar.Where(a => a.MüsaitMi).OrderBy(a => a).ToList();
+            foreach (var arac in araclar)
             {
                 Console.WriteLine($"Araç: {arac.AracAdi}, Marka: {arac.Marka}, Model: {arac.Model}, Kategori: {arac.Kategori}, Fiyat: {arac.GunlukKiralamaFiyati:C}");
             }
         }
+
+        public void KullaniciGiris()
+        {
+            Console.WriteLine("Kullanıcı adı: ");
+            string kullaniciAdi = Console.ReadLine();
+            aktifKullanici = kullanicilar.FirstOrDefault(k => k.KullaniciAdi == kullaniciAdi);
+
+            if (aktifKullanici == null)
+            {
+                Console.WriteLine("Kullanıcı bulunamadı.");
+                return;
+            }
+            Console.WriteLine($"Hoş geldiniz {aktifKullanici.KullaniciAdi}!");
+        }
+
+        public Kiralama RezervasyonYap(string aracAdi, DateTime baslangicTarihi, DateTime bitisTarihi)
+        {
+            if (aktifKullanici == null)
+            {
+                Console.WriteLine("Lütfen giriş yapın.");
+                return null;
+            }
+
+            var arac = mevcutAraclar.FirstOrDefault(a => a.AracAdi.Equals(aracAdi, StringComparison.OrdinalIgnoreCase) && a.MüsaitMi);
+            if (arac != null)
+            {
+                var kiralama = new Kiralama(arac, aktifKullanici, baslangicTarihi, bitisTarihi);
+                Console.WriteLine("Araç başarıyla rezerve edildi.");
+                return kiralama;
+            }
+            else
+            {
+                Console.WriteLine("Bu araç şu an müsait değil.");
+                return null;
+            }
+        }
+
+        public void TeslimatVeOdeme(Kiralama kiralama, DateTime teslimTarihi)
+        {
+            if (kiralama != null)
+            {
+                kiralama.KiralamayiTamamla(teslimTarihi);
+            }
+            else
+            {
+                Console.WriteLine("Geçerli bir kiralama bulunamadı.");
+            }
+        }
     }
 
-    public Kiralama RezervasyonYap(Kullanici kullanici, string aracAdi, DateTime baslangicTarihi, DateTime bitisTarihi)
+    #endregion
+
+    #region - Ana Program
+
+    public class Program
     {
-        var arac = mevcutAraclar.FirstOrDefault(a => a.AracAdi.Equals(aracAdi, StringComparison.OrdinalIgnoreCase) && a.MüsaitMi);
-        if (arac != null)
+        static void Main()
         {
-            var kiralama = new Kiralama(arac, kullanici, baslangicTarihi, bitisTarihi);
-            Console.WriteLine("Araç başarıyla rezerve edildi.");
-            return kiralama;
-        }
-        else
-        {
-            Console.WriteLine("Bu araç şu an müsait değil.");
-            return null;
+            var kiralamaSistemi = new AracKiralamaSistemi();
+            kiralamaSistemi.AracEkle("BMW X5", "BMW", "X5", 500, "SUV");
+            kiralamaSistemi.AracEkle("Audi A4", "Audi", "A4", 400, "Sedan");
+            kiralamaSistemi.AracEkle("Mercedes C-Class", "Mercedes", "C-Class", 450, "Sedan");
+
+            while (true)
+            {
+                Console.WriteLine("\n1. Kullanıcı Ekle");
+                Console.WriteLine("2. Kullanıcı Girişi");
+                Console.WriteLine("3. Araçları Göster");
+                Console.WriteLine("4. Araç Kirala");
+                Console.WriteLine("5. Kiralamayı Tamamla");
+                Console.WriteLine("6. Çıkış");
+
+                int secim = int.Parse(Console.ReadLine());
+
+                switch (secim)
+                {
+                    case 1:
+                        kiralamaSistemi.KullaniciEkle();
+                        break;
+                    case 2:
+                        kiralamaSistemi.KullaniciGiris();
+                        break;
+                    case 3:
+                        kiralamaSistemi.MevcutAraclariGoster();
+                        break;
+                    case 4:
+                        Console.WriteLine("Kiralamak istediğiniz aracın adını girin:");
+                        string aracAdi = Console.ReadLine();
+
+                        Console.WriteLine("Başlangıç tarihi (YYYY-MM-DD): ");
+                        DateTime baslangicTarihi = DateTime.Parse(Console.ReadLine());
+
+                        Console.WriteLine("Bitiş tarihi (YYYY-MM-DD): ");
+                        DateTime bitisTarihi = DateTime.Parse(Console.ReadLine());
+
+                        var kiralama = kiralamaSistemi.RezervasyonYap(aracAdi, baslangicTarihi, bitisTarihi);
+                        break;
+                    case 5:
+                        Console.WriteLine("Teslim tarihi (YYYY-MM-DD): ");
+                        DateTime teslimTarihi = DateTime.Parse(Console.ReadLine());
+
+                        kiralamaSistemi.TeslimatVeOdeme(kiralama, teslimTarihi);
+                        break;
+                    case 6:
+                        return;
+                    default:
+                        Console.WriteLine("Geçersiz seçim.");
+                        break;
+                }
+            }
         }
     }
 
-    public void KategoriyeGoreAra(string kategori)
-    {
-        var araclar = mevcutAraclar.Where(a => a.Kategori.Equals(kategori, StringComparison.OrdinalIgnoreCase) && a.MüsaitMi).ToList();
-        Console.WriteLine($"{kategori} Kategorisindeki Müsait Araçlar:");
-        foreach (var arac in araclar)
-        {
-            Console.WriteLine($"Araç: {arac.AracAdi}, Marka: {arac.Marka}, Model: {arac.Model}, Fiyat: {arac.GunlukKiralamaFiyati:C}");
-        }
-    }
-}
-
-class Program
-{
-    static void Main(string[] args)
-    {
-        var kiralamaSistemi = new AracKiralamaSistemi();
-
-        // Kullanıcıları ekliyoruz
-        kiralamaSistemi.KullaniciEkle();  // Kullanıcıdan bilgileri alıp kaydediyoruz
-
-        // Araçlar ekleniyor
-        kiralamaSistemi.AracEkle("Arac1", "Audi", "A4", 150, "Lüks");
-        kiralamaSistemi.AracEkle("Arac2", "BMW", "320i", 180, "Lüks");
-        kiralamaSistemi.AracEkle("Arac3", "Toyota", "Corolla", 100, "Ekonomik");
-        kiralamaSistemi.AracEkle("Arac4", "Ford", "Focus", 120, "Ekonomik");
-
-        // Mevcut araçlar gösteriliyor
-        kiralamaSistemi.MevcutAraclariGoster();
-
-        // Kullanıcıdan rezervasyon için bilgi al
-        Console.WriteLine("Araç adını girin (örneğin: Arac1): ");
-        string aracAdi = Console.ReadLine();
-
-        Console.WriteLine("Başlangıç tarihi (yyyy-MM-dd): ");
-        DateTime baslangicTarihi = DateTime.Parse(Console.ReadLine());
-
-        Console.WriteLine("Bitiş tarihi (yyyy-MM-dd): ");
-        DateTime bitisTarihi = DateTime.Parse(Console.ReadLine());
-
-        // Kullanıcıyı seçiyoruz
-        var kullanici = new Kullanici("ali", "yilmaz", "5551234567", "1234", "ali@mail.com");
-
-        // Kiralama işlemi
-        var rezervasyon = kiralamaSistemi.RezervasyonYap(kullanici, aracAdi, baslangicTarihi, bitisTarihi);
-
-        if (rezervasyon != null)
-        {
-            rezervasyon.KiralamayiBaslat();  // Kiralama başlatılıyor
-
-            // Kiralama süresi sonunda gecikme varsa, ödeme hesaplanıyor
-            rezervasyon.KiralamayiTamamla(DateTime.Parse("2024-12-06")); // 5 gün gecikmeli teslim
-        }
-
-        // Kullanıcı bilgilerini yazdırıyoruz
-        kullanici.KullaniciBilgileriniYazdir();
-    }
+    #endregion
 }
